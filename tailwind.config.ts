@@ -14,5 +14,6 @@ export default {
       },
     },
   },
+  darkMode: 'class', // Add this line to enable dark mode
   plugins: [],
 } satisfies Config;
