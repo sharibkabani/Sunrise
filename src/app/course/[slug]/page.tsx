@@ -9,6 +9,7 @@ import { useUser } from "@clerk/clerk-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import Image from "next/image";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -47,6 +48,12 @@ type Course = {
   quiz: CourseQuiz | null;
 };
 
+type QuizResult = {
+  score: number;
+  total_questions: number;
+  created_at: string;
+};
+
 export default function CoursePage() {
   const params = useParams();
   const { slug } = params;
@@ -63,32 +70,43 @@ export default function CoursePage() {
   const [selectedAnswers, setSelectedAnswers] = useState<{
     [key: number]: string;
   }>({});
+  const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
 
   useEffect(() => {
     const fetchCourse = async () => {
-      const { data: courseData, error: courseError } = await supabase
+      const courseResponse = await supabase
         .from("courses")
         .select(
           `
+        *,
+        videos: course_videos(
           *,
-          videos: course_videos(
-            *,
-            watched_videos: watched_course_videos(
-              is_locked,
-              status
-            )
-          ),
-          quiz: course_quizes(*)
-        `
+          watched_videos: watched_course_videos(
+            is_locked,
+            status
+          )
+        ),
+        quiz: course_quizes(*)
+      `
         )
         .eq("slug", slug)
         .single();
 
-      if (courseError) {
-        setError(courseError);
-      } else if (courseData) {
+      let quizResultResponse = null;
+      if (user?.id && courseResponse.data?.id) {
+        quizResultResponse = await supabase
+          .from("quiz_results")
+          .select("*")
+          .eq("course_id", courseResponse.data.id)
+          .eq("user_id", user.id)
+          .single();
+      }
+
+      if (courseResponse.error) {
+        setError(courseResponse.error);
+      } else if (courseResponse.data) {
         // Sort videos by position and map the data
-        const sortedVideos = courseData.videos
+        const sortedVideos = courseResponse.data.videos
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .sort((a: any, b: any) => a.position - b.position)
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -111,16 +129,21 @@ export default function CoursePage() {
         setShowQuiz(allCompleted);
 
         setCourse({
-          ...courseData,
+          ...courseResponse.data,
           videos: sortedVideos || [],
-          quiz: courseData.quiz[0] || null,
+          quiz: courseResponse.data.quiz[0] || null,
         });
+
+        // Set quiz result if exists
+        if (quizResultResponse?.data) {
+          setQuizResult(quizResultResponse.data);
+        }
       }
       setLoading(false);
     };
 
     fetchCourse();
-  }, [slug]);
+  }, [slug, user?.id]);
 
   useEffect(() => {
     if (!course?.videos || !course.videos.length) return;
@@ -325,16 +348,32 @@ export default function CoursePage() {
       return acc + (selectedAnswers[q.id] === q.correct_answer ? 1 : 0);
     }, 0);
 
-    // Save quiz result
-    await supabase.from("quiz_results").insert({
-      user_id: user.id,
-      course_id: course.id,
-      score,
-      total_questions: course.quiz.questions.length,
-      completed_at: new Date().toISOString(),
-    });
+    try {
+      // Save quiz result
+      const { data, error } = await supabase
+        .from("quiz_results")
+        .insert({
+          user_id: user.id,
+          course_id: course.id,
+          score,
+          total_questions: course.quiz.questions.length,
+        })
+        .select()
+        .single();
 
-    alert(`Quiz submitted! Score: ${score}/${course.quiz.questions.length}`);
+      if (error) throw error;
+
+      // Update local state
+      setQuizResult(data);
+
+      // Show success message
+      alert(
+        `Congratulations! You scored ${score}/${course.quiz.questions.length}`
+      );
+    } catch (error) {
+      console.error("Error submitting quiz:", error);
+      alert("Failed to submit quiz. Please try again.");
+    }
   };
 
   if (loading) {
@@ -412,52 +451,75 @@ export default function CoursePage() {
             {showQuiz && course?.quiz ? (
               <div className="bg-card rounded-lg p-6">
                 <h2 className="text-2xl font-semibold mb-4">Course Quiz</h2>
-                <ScrollArea className="h-[600px] pr-4">
-                  {course.quiz.questions.map((q) => (
-                    <div key={q.id} className="mb-8">
-                      <h3 className="text-lg font-medium mb-4">
-                        {q.id}. {q.question}
-                      </h3>
-                      <RadioGroup
-                        value={selectedAnswers[q.id]}
-                        onValueChange={(value) =>
-                          setSelectedAnswers((prev) => ({
-                            ...prev,
-                            [q.id]: value,
-                          }))
-                        }
-                      >
-                        {q.options.map((opt, optIdx) => (
-                          <div
-                            key={optIdx}
-                            className="flex items-center space-x-2 mb-2"
+                {quizResult ? (
+                  <div className="text-center py-8 flex items-center flex-col gap-4">
+                    <Image
+                      alt="Trophy"
+                      priority
+                      src={"/trophy.png"}
+                      width={190}
+                      height={190}
+                    />
+                    <h3 className="text-xl font-medium">Quiz Completed!</h3>
+                    <p className="text-lg">
+                      You scored: {quizResult.score}/
+                      {quizResult.total_questions}
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Completed on:{" "}
+                      {new Date(quizResult.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <ScrollArea className="h-[600px] pr-4">
+                      {course.quiz.questions.map((q) => (
+                        <div key={q.id} className="mb-8">
+                          <h3 className="text-lg font-medium mb-4">
+                            {q.id}. {q.question}
+                          </h3>
+                          <RadioGroup
+                            value={selectedAnswers[q.id]}
+                            onValueChange={(value) =>
+                              setSelectedAnswers((prev) => ({
+                                ...prev,
+                                [q.id]: value,
+                              }))
+                            }
                           >
-                            <RadioGroupItem
-                              value={opt}
-                              id={`q${q.id}-opt${optIdx}`}
-                            />
-                            <label
-                              htmlFor={`q${q.id}-opt${optIdx}`}
-                              className="text-sm"
-                            >
-                              {opt}
-                            </label>
-                          </div>
-                        ))}
-                      </RadioGroup>
-                    </div>
-                  ))}
-                </ScrollArea>
-                <Button
-                  className="w-full mt-4"
-                  onClick={handleQuizSubmit}
-                  disabled={
-                    Object.keys(selectedAnswers).length !==
-                    course.quiz.questions.length
-                  }
-                >
-                  Submit Quiz
-                </Button>
+                            {q.options.map((opt, optIdx) => (
+                              <div
+                                key={optIdx}
+                                className="flex items-center space-x-2 mb-2"
+                              >
+                                <RadioGroupItem
+                                  value={opt}
+                                  id={`q${q.id}-opt${optIdx}`}
+                                />
+                                <label
+                                  htmlFor={`q${q.id}-opt${optIdx}`}
+                                  className="text-sm"
+                                >
+                                  {opt}
+                                </label>
+                              </div>
+                            ))}
+                          </RadioGroup>
+                        </div>
+                      ))}
+                    </ScrollArea>
+                    <Button
+                      className="w-full mt-4"
+                      onClick={handleQuizSubmit}
+                      disabled={
+                        Object.keys(selectedAnswers).length !==
+                        course.quiz.questions.length
+                      }
+                    >
+                      Submit Quiz
+                    </Button>
+                  </>
+                )}
               </div>
             ) : (
               activeVideo && (
