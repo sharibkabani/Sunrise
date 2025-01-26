@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import NewPost from "./newPost/page";
 import DiscussionCard from "@/components/DiscussionCard";
 import CourseCard from "@/components/CourseCard";
 

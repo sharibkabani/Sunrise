@@ -14,7 +14,7 @@ import {
   Heading6,
 } from "lucide-react";
 import { Button } from "./button";
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor, EditorContent, Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Heading from "@tiptap/extension-heading"; // Import the Heading extension
 import { cn } from "@/lib/utils";
@@ -23,7 +23,7 @@ interface TextareaProps {
   id: string;
   className?: string;
   value: string;
-  onChange: (value: string) => void;
+  onChange: (value: Editor) => void;
   placeholder?: string;
   required: boolean;
 }
@@ -59,10 +59,10 @@ const Textarea: React.FC<TextareaProps> = ({
         },
       }),
     ],
-    content: value || "",
+    content: value,
     editable: true,
     onUpdate: ({ editor }) => {
-      onChange(editor.getHTML());
+      onChange(editor);
     },
     editorProps: {
       attributes: {
@@ -239,9 +239,15 @@ const Textarea: React.FC<TextareaProps> = ({
       </div>
       <div
         className={cn(
-          "relative min-h-[60vh] w-full rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+          "relative min-h-[60vh] w-full rounded-md border border-input p-3 bg-transparent",
+          "focus-within:outline-none focus-within:ring-1 focus-within:ring-black",
           className
         )}
+        onClick={() => {
+          if (editor && !editor.isDestroyed) {
+            editor.chain().focus().run();
+          }
+        }}
       >
         {!editor?.getText() && (
           <div className="absolute top-[10px] left-[12px] text-muted-foreground pointer-events-none">

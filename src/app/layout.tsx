@@ -39,16 +39,16 @@ export default function RootLayout({
   }, []);
 
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body>
-        <ClerkProvider>
+    <ClerkProvider>
+      <html lang="en" suppressHydrationWarning>
+        <body>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
             <NavBar />
             {children}
             <Footer />
           </ThemeProvider>
-        </ClerkProvider>
-      </body>
-    </html>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

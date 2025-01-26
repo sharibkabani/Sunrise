@@ -3,16 +3,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { Sun, Moon } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
 export default function NavBar() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [activeLink, setActiveLink] = useState("home");
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+  }, [activeLink]);
 
   if (!mounted) {
     return null; // or a loading skeleton
@@ -32,8 +34,14 @@ export default function NavBar() {
             />
           </div>
           <div className="flex items-center gap-8">
-            <div className="flex gap-6">
-              <Link href="/" className="hover:text-gray-600">
+            <div className="flex gap-6 items-center">
+              <Link
+                href="/"
+                onClick={() => setActiveLink("Home")}
+                className={`hover:text-gray-600 ${
+                  activeLink === "home" ? "text-[#ecac04]" : ""
+                }`}
+              >
                 Home
               </Link>
               <a href="/about" className="hover:text-gray-600">
@@ -42,6 +50,12 @@ export default function NavBar() {
               <a href="/contact" className="hover:text-gray-600">
                 Contact
               </a>
+              <Button
+                onClick={() => setActiveLink("newPost")}
+                className="bg-black hover:bg-black/80 rounded-full"
+              >
+                <Link href="/newPost">Create Post</Link>
+              </Button>
             </div>
             <div className="flex items-center space-x-2 w-[100px] justify-between">
               <div className="w-[20px]">
