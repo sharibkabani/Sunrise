@@ -1,5 +1,8 @@
 # SunRise
 
+![alt text](https://i.imgur.com/WbVCOfM.png)
+
+
 Welcome to **SunRise**, an innovative gamified educational platform designed to empower Gen Z and Gen Alpha to learn about investing and take control of their financial futures.
 
 ## Overview
