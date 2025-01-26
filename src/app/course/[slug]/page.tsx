@@ -18,6 +18,7 @@ type CourseVideo = {
   name: string;
   video_url: string;
   duration: number;
+  is_locked: boolean;
   isCompleted?: boolean;
 };
 
@@ -38,33 +39,47 @@ export default function CoursePage() {
   const [error, setError] = useState<PostgrestError | null>(null);
   const [activeVideo, setActiveVideo] = useState<CourseVideo | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [lastWatchedPosition, setLastWatchedPosition] = useState<number>(-1);
+  const [showingNextIn, setShowingNextIn] = useState(false);
+  const [countdown, setCountdown] = useState(5);
+  const [videoMarkedAsComplete, setVideoMarkedAsComplete] = useState(false);
 
   useEffect(() => {
     const fetchCourse = async () => {
-      const { data, error } = await supabase
+      const { data: courseData, error: courseError } = await supabase
         .from("courses")
         .select(
           `
           *,
           videos: course_videos(
             *,
-            position
+            watched_videos: watched_course_videos(
+              is_locked
+            )
           )
         `
         )
         .eq("slug", slug)
         .single();
 
-      if (error) {
-        setError(error);
-      } else {
-        // Sort videos by position before setting state
-        const sortedVideos = data.videos.sort(
-          (a: CourseVideo, b: CourseVideo) => a.position - b.position
-        );
+      if (courseError) {
+        setError(courseError);
+      } else if (courseData) {
+        // Sort videos by position and map the data
+        const sortedVideos = courseData.videos
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .sort((a: any, b: any) => a.position - b.position)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .map((video: any) => ({
+            ...video,
+            // If no watched entry exists, first video is unlocked, others are locked
+            is_locked:
+              video.watched_videos.length > 0
+                ? video.watched_videos[0].is_locked
+                : video.position !== 1,
+          }));
+
         setCourse({
-          ...data,
+          ...courseData,
           videos: sortedVideos || [],
         });
       }
@@ -75,60 +90,83 @@ export default function CoursePage() {
   }, [slug]);
 
   useEffect(() => {
-    if (course?.videos && course.videos.length > 0) {
-      // Set first video as active by default
-      setActiveVideo(course.videos[0]);
-    }
+    if (!course?.videos || !course.videos.length) return;
+
+    // Find the last unlocked video
+    const lastUnlockedVideo = [...course.videos]
+      .reverse()
+      .find((video) => !video.is_locked);
+
+    // Set either the last unlocked video or the first video as active
+    setActiveVideo(lastUnlockedVideo || course.videos[0]);
   }, [course]);
 
-  useEffect(() => {
-    const fetchLastWatchedPosition = async () => {
-      if (!user?.id || !course?.id) return;
-
-      // First get all course video IDs for this course
-      const courseVideoIds = course.videos.map((v) => v.id);
-
-      const { data, error } = await supabase
-        .from("watched_course_videos")
-        .select(
-          `
-          course_videos!inner (
-            position
-          )
-        `
-        )
-        .eq("user_id", user.id)
-        .in("course_video_id", courseVideoIds)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-
-      if (!error && data) {
-        setLastWatchedPosition(data.course_videos.position);
-      } else {
-        // If no records found, set to -1 to only enable first video
-        setLastWatchedPosition(-1);
-      }
-    };
-
-    fetchLastWatchedPosition();
-  }, [user?.id, course?.id, course?.videos]);
-
+  // Modify markVideoAsWatched to only handle API call without state updates
   const markVideoAsWatched = useCallback(
     async (videoId: number) => {
-      if (!user?.id) return;
+      if (!user?.id || !course?.videos) return;
 
-      const { error } = await supabase.from("watched_course_videos").upsert({
-        user_id: user.id,
-        course_video_id: videoId,
-        created_at: new Date().toISOString(),
-      });
+      try {
+        // Mark current video as completed
+        await supabase.from("watched_course_videos").upsert({
+          user_id: user.id,
+          course_video_id: videoId,
+          status: "COMPLETED",
+          created_at: new Date().toISOString(),
+        });
 
-      if (error) {
-        console.error("Error recording video progress:", error);
+        setVideoMarkedAsComplete(true);
+      } catch (error) {
+        console.error("Error updating video progress:", error);
       }
     },
-    [user?.id]
+    [user?.id, course?.videos]
+  );
+
+  // Separate function to handle unlocking next video
+  const unlockNextVideo = useCallback(
+    async (currentVideoId: number) => {
+      if (!user?.id || !course?.videos) return;
+
+      const currentIndex = course.videos.findIndex(
+        (v) => v.id === currentVideoId
+      );
+      const nextVideo = course.videos[currentIndex + 1];
+
+      if (nextVideo) {
+        try {
+          await supabase.from("watched_course_videos").upsert({
+            user_id: user.id,
+            course_video_id: nextVideo.id,
+            is_locked: false,
+            created_at: new Date().toISOString(),
+          });
+
+          // Update local state only after video ends
+          setCourse((prevCourse) => {
+            if (!prevCourse) return null;
+
+            const updatedVideos = prevCourse.videos.map((video) => {
+              if (video.id === currentVideoId) {
+                return { ...video, isCompleted: true };
+              }
+              if (video.id === nextVideo.id) {
+                return { ...video, is_locked: false };
+              }
+              return video;
+            });
+
+            return {
+              ...prevCourse,
+              videos: updatedVideos,
+            };
+          });
+        } catch (error) {
+          console.error("Error unlocking next video:", error);
+        }
+      }
+    },
+    [user?.id, course?.videos]
   );
 
   const moveToNextVideo = useCallback(() => {
@@ -140,6 +178,10 @@ export default function CoursePage() {
     const nextVideo = course.videos[currentIndex + 1];
 
     if (nextVideo) {
+      // Reset states before changing video
+      setVideoMarkedAsComplete(false);
+      setShowingNextIn(false);
+      setCountdown(5);
       setActiveVideo(nextVideo);
       return true;
     }
@@ -153,16 +195,20 @@ export default function CoursePage() {
 
     const handleTimeUpdate = () => {
       const progress = (video.currentTime / video.duration) * 100;
-      if (progress >= 90 && activeVideo?.id) {
+      if (progress >= 90 && activeVideo?.id && !videoMarkedAsComplete) {
         markVideoAsWatched(activeVideo.id);
-        video.removeEventListener("timeupdate", handleTimeUpdate);
       }
     };
 
     const handleEnded = async () => {
       if (activeVideo?.id) {
-        await markVideoAsWatched(activeVideo.id);
-        moveToNextVideo();
+        if (!videoMarkedAsComplete) {
+          await markVideoAsWatched(activeVideo.id);
+        }
+        await unlockNextVideo(activeVideo.id);
+        // Just start countdown, don't move to next video here
+        setShowingNextIn(true);
+        setCountdown(5);
       }
     };
 
@@ -173,18 +219,37 @@ export default function CoursePage() {
       video.removeEventListener("timeupdate", handleTimeUpdate);
       video.removeEventListener("ended", handleEnded);
     };
-  }, [activeVideo?.id, markVideoAsWatched, moveToNextVideo]);
+  }, [
+    activeVideo?.id,
+    markVideoAsWatched,
+    unlockNextVideo,
+    videoMarkedAsComplete,
+  ]);
+
+  // Handle countdown and video transition
+  useEffect(() => {
+    if (!showingNextIn) return;
+
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          setShowingNextIn(false);
+          setVideoMarkedAsComplete(false);
+          return 5;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [showingNextIn, moveToNextVideo]);
 
   const handleVideoClick = (video: CourseVideo) => {
     setActiveVideo(video);
   };
 
-  const canWatchVideo = (videoIndex: number) => {
-    // First video is always watchable
-    if (videoIndex === 0) return true;
-
-    // User can watch next video after current position
-    return videoIndex <= lastWatchedPosition;
+  const canWatchVideo = (video: CourseVideo) => {
+    return !video.is_locked;
   };
 
   const renderVideoPlayer = (video: CourseVideo) => {
@@ -229,7 +294,7 @@ export default function CoursePage() {
       <main className="flex-1 container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-6">{course.name}</h1>
 
-        <div className="flex gap-6">
+        <div className="flex gap-6 mt-16">
           {/* Left Column - Video List */}
           <div className="w-6/12">
             <h2 className="text-2xl font-semibold mb-4">Course Content</h2>
@@ -238,11 +303,11 @@ export default function CoursePage() {
                 <div
                   key={video.id}
                   onClick={() =>
-                    canWatchVideo(index) && handleVideoClick(video)
+                    canWatchVideo(video) && handleVideoClick(video)
                   }
                   className={cn(
                     "flex items-center justify-between p-4 bg-card rounded-lg",
-                    canWatchVideo(index)
+                    canWatchVideo(video)
                       ? "hover:bg-accent cursor-pointer"
                       : "bg-muted cursor-not-allowed",
                     activeVideo?.id === video.id &&
@@ -257,7 +322,7 @@ export default function CoursePage() {
                       <h3 className="font-medium text-base">{video.name}</h3>
                     </div>
                   </div>
-                  {!canWatchVideo(index) && (
+                  {video.is_locked && (
                     <Lock className="w-5 h-5 text-muted-foreground" />
                   )}
                 </div>
@@ -269,7 +334,16 @@ export default function CoursePage() {
           <div className="w-6/12 flex flex-col gap-4">
             {activeVideo && (
               <>
-                {renderVideoPlayer(activeVideo)}
+                <div className="relative">
+                  {renderVideoPlayer(activeVideo)}
+                  {showingNextIn && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <p className="text-white text-2xl font-bold">
+                        Next video in {countdown}s
+                      </p>
+                    </div>
+                  )}
+                </div>
                 <div className="mt-4 bg-card rounded-lg p-4">
                   <h3 className="font-semibold text-lg">{activeVideo.name}</h3>
                 </div>

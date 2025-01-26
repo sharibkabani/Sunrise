@@ -6,6 +6,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import DiscussionCard from "@/components/DiscussionCard";
 import CourseCard, { CourseStatus } from "@/components/CourseCard";
 import { createClient } from "@supabase/supabase-js";
+import { useRouter } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -46,6 +48,13 @@ type Crypto = {
   image: string;
 };
 
+type CourseVideo = {
+  id: number;
+  course_id: number;
+  title: string;
+  order: number;
+};
+
 function parseHTMLtoText(htmlString: string) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(htmlString, "text/html");
@@ -53,12 +62,19 @@ function parseHTMLtoText(htmlString: string) {
 }
 
 export default function Home() {
+  const router = useRouter();
+  const [userId, setUserId] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [activeTab, setActiveTab] = useState<string>("");
   const [courses, setCourses] = useState<Course[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [cryptos, setCryptos] = useState<Crypto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingCourses, setLoadingCourses] = useState<{
+    [key: number]: boolean;
+  }>({});
+
+  const { user } = useUser();
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -159,6 +175,63 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  const handleStartLearning = async (courseId: number) => {
+    setLoadingCourses((prev) => ({ ...prev, [courseId]: true }));
+
+    try {
+      // 1. Update course status to ONGOING
+      const { error: courseError } = await supabase
+        .from("courses")
+        .update({ status: "ONGOING" })
+        .eq("id", courseId);
+
+      if (courseError) throw courseError;
+
+      // 2. Fetch all videos for this course
+      const { data: courseVideos, error: videosError } = await supabase
+        .from("course_videos")
+        .select("*")
+        .eq("course_id", courseId)
+        .order("position");
+
+      if (videosError) throw videosError;
+
+      // 3. Create watched_course_videos entries
+      const watchedVideosData = courseVideos.map(
+        (video: CourseVideo, index: number) => ({
+          course_video_id: video.id,
+          status: "PENDING",
+          is_locked: index !== 0, // First video is unlocked
+          user_id: user?.id,
+          created_at: new Date().toISOString(),
+        })
+      );
+
+      const { error: watchedError } = await supabase
+        .from("watched_course_videos")
+        .insert(watchedVideosData);
+
+      if (watchedError) throw watchedError;
+
+      // Find the course to get its slug
+      const course = courses.find((c) => c.id === courseId);
+      if (course) {
+        // Update local state
+        setCourses((prev) =>
+          prev.map((c) =>
+            c.id === courseId ? { ...c, status: "ONGOING" as CourseStatus } : c
+          )
+        );
+        // Redirect to course content
+        router.push(`/course/${course.slug}`);
+      }
+    } catch (error) {
+      console.error("Error starting course:", error);
+    } finally {
+      setLoadingCourses((prev) => ({ ...prev, [courseId]: false }));
+    }
+  };
+
   const renderTabContent = () => {
     return (
       <>
@@ -166,15 +239,19 @@ export default function Home() {
           <TabsContent key={category.id} value={category.id.toString()}>
             <div className="grid grid-cols-2 gap-6 mt-6">
               {courses.map((course) => (
-                <Link key={course.slug} href={`/course/${course.slug}`}>
+                <div key={course.slug}>
                   <CourseCard
                     title={course.name}
                     imageUrl={course.thumbnail || ""}
                     videoCount={course.videoCount}
                     difficulty={course.difficulty}
                     status={course.status}
+                    courseId={course.id}
+                    onStartLearning={handleStartLearning}
+                    isLoading={loadingCourses[course.id]}
+                    slug={course.slug}
                   />
-                </Link>
+                </div>
               ))}
             </div>
           </TabsContent>
