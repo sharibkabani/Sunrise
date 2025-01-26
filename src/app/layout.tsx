@@ -5,13 +5,7 @@ import Footer from "@/components/layout/Footer";
 import NavBar from "@/components/layout/Navbar";
 import { ThemeProvider } from "next-themes";
 import { useEffect } from "react";
-import {
-  ClerkProvider,
-  SignInButton,
-  SignedIn,
-  SignedOut,
-  UserButton,
-} from "@clerk/nextjs";
+import { ClerkProvider } from "@clerk/nextjs";
 
 export default function RootLayout({
   children,
@@ -48,18 +42,12 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body>
         <ClerkProvider>
-          <SignedOut>
-            <SignInButton />
-          </SignedOut>
-          <SignedIn>
-            <UserButton />
-          </SignedIn>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+            <NavBar />
+            {children}
+            <Footer />
+          </ThemeProvider>
         </ClerkProvider>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <NavBar />
-          {children}
-          <Footer />
-        </ThemeProvider>
       </body>
     </html>
   );

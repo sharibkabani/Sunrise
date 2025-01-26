@@ -18,7 +18,7 @@ export default function TabSection({
 
   return (
     <Tabs value={activeTab} onValueChange={onTabChange} className="mt-6">
-      <TabsList className="w-full justify-start">
+      <TabsList className="w-full justify-start rounded-lg">
         {tabs.map((tab) => (
           <TabsTrigger key={tab.id} value={tab.id}>
             {tab.label}
