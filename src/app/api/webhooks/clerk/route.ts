@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
 	process.env.NEXT_PUBLIC_SUPABASE_URL!,
-	process.env.SUPABASE_SERVICE_ROLE_KEY!
+	process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export async function POST(req: Request) {
@@ -55,9 +55,7 @@ export async function POST(req: Request) {
 
 	// Handle user.created event
 	if (evt.type === "user.created") {
-		const { id, email_addresses, username } = evt.data;
-
-        console.log("User created:", id, email_addresses[0].email_address, username);
+		const { id, email_addresses, username, image_url } = evt.data;
 
 		// Insert new user into Supabase
 		const { error } = await supabase.from("users").insert([
@@ -65,6 +63,7 @@ export async function POST(req: Request) {
 				id,
 				email: email_addresses[0].email_address,
 				username,
+				avatar: image_url,
 			},
 		]);
 
@@ -75,23 +74,37 @@ export async function POST(req: Request) {
 			});
 		}
 	} else if (evt.type === "user.updated") {
-        const { id, email_addresses, username } = evt.data;
+		const { id, email_addresses, username, image_url } = evt.data;
 
-        console.log("User updated:", id, email_addresses[0].email_address, username);
+		// Update user in Supabase
+		const { error } = await supabase
+			.from("users")
+			.update({
+				email: email_addresses[0].email_address,
+				username,
+				avatar: image_url,
+			})
+			.eq("id", id);
 
-        // Update user in Supabase
-        const { error } = await supabase.from("users").update({
-            email: email_addresses[0].email_address,
-            username,
-        }).eq("id", id);
+		if (error) {
+			console.error("Error updating user in Supabase:", error);
+			return new Response("Error updating user in Supabase", {
+				status: 500,
+			});
+		}
+	} else if (evt.type === "user.deleted") {
+		const { id } = evt.data;
 
-        if (error) {
-            console.error("Error updating user in Supabase:", error);
-            return new Response("Error updating user in Supabase", {
-                status: 500,
-            });
-        }
-    }
+		// Delete user from Supabase
+		const { error } = await supabase.from("users").delete().eq("id", id);
+
+		if (error) {
+			console.error("Error deleting user from Supabase:", error);
+			return new Response("Error deleting user from Supabase", {
+				status: 500,
+			});
+		}
+	}
 
 	return new Response("Webhook received", { status: 200 });
 }

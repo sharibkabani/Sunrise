@@ -47,12 +47,12 @@ export default function NavBar() {
 							<Link href="/" className="hover:text-gray-600">
 								Home
 							</Link>
-							<a href="/about" className="hover:text-gray-600">
-								About
-							</a>
-							<a href="/contact" className="hover:text-gray-600">
-								Contact
-							</a>
+							<Link href="/posts" className="hover:text-gray-600">
+								Posts
+							</Link>
+							<Link href="/profile" className="hover:text-gray-600">
+								Profile
+							</Link>
 						</div>
 						<div className="flex items-center space-x-2 w-[100px] justify-between">
 							<div className="w-[20px]">
