@@ -1,7 +1,6 @@
 "use client";
 
 import { NewPostForm } from "@/components/newpost-form";
-import DarkModeToggle from "@/components/DarkModeToggle";
 import { useState, useEffect } from "react";
 
 export function NewPostPageContent() {
@@ -27,4 +26,5 @@ export function NewPostPageContent() {
       </div>
     </div>
   );
+  
 }

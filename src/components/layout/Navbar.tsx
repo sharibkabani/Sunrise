@@ -53,17 +53,22 @@ export default function NavBar() {
 					</div>
 					<div className="flex items-center gap-8">
 						<div className="flex gap-6">
-							<Link href="/" className="hover:text-gray-600">
+							<Link href="/" className="hover:text-gray-600 pt-1">
 								Home
 							</Link>
-							<Link href="/posts" className="hover:text-gray-600">
+							<Link href="/posts" className="hover:text-gray-600 pt-1">
 								Posts
 							</Link>
-							<Link href="/profile" className="hover:text-gray-600">
+							<Link href="/profile" className="hover:text-gray-600 pt-1">
 								Profile
 							</Link>
-							<Link href="/about" className="hover:text-gray-600">
+							<Link href="/about" className="hover:text-gray-600 pt-1">
 								About
+							</Link>
+							<Link href="/newPost">
+								<button className="bg-black text-white rounded-full px-6 py-2 text-sm hover:bg-gray-700">
+									New Post
+								</button>
 							</Link>
 						</div>
 						<div className="flex items-center space-x-2 w-[100px] justify-between">

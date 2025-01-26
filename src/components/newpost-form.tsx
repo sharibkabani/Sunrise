@@ -1,26 +1,65 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Editor } from "@tiptap/react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea"; // Assuming you have a Textarea component
 import { Button } from "@/components/ui/button"; // Assuming you have a Button component
 import { cn } from "@/lib/utils"; // Assuming you have a utility function for class names
+import { redirect } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
+import { useUser } from "@clerk/nextjs";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export function NewPostForm({
   className,
-  ...props
 }: React.ComponentPropsWithoutRef<"form">) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [contentText, setContentText] = useState("");
+  const { user } = useUser();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (!user) {
+      redirect("/");
+    }
+  }, [user]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle form submission logic here
+
+    // Calculate read time
+    const readTime = Math.ceil(contentText.replace(/[\r\n]/g, "").length / 500);
+
+    // Insert the new post into the posts table
+    const { data, error } = await supabase
+      .from("posts")
+      .insert([
+        {
+          user_id: user?.id,
+          title: title,
+          body: content,
+          read_time: readTime,
+        },
+      ])
+      .select("id")
+      .single();
+
+    if (error) {
+      console.error("Error inserting post:", error);
+      return;
+    }
+
+    // Redirect to the new post's page
+    redirect(`/posts/${data.id}`);
   };
 
   const handleCancel = () => {
     // Handle cancel logic here
+    redirect("/");
   };
 
   return (
@@ -43,7 +82,7 @@ export function NewPostForm({
             <Label htmlFor="content">Content</Label>
             <Textarea
               id="content"
-              placeholder="Post Content"
+              placeholder=""
               value={content}
               onChange={(e: Editor) => {
                 setContent(e.getHTML());
@@ -51,23 +90,23 @@ export function NewPostForm({
               }}
               required
             />
-            <div className="text-sm text-muted-foreground text-right">
-              {contentText.replace(/[\r\n]/g, "").length} characters
-            </div>
+          </div>
+          <div className="text-sm text-muted-foreground text-right">
+            {contentText.replace(/[\r\n]/g, "").length} characters
           </div>
         </div>
+        <div className="flex flex-row justify-end gap-2">
+          <Button type="submit" className="bg-black text-white hover:bg-gray-700">
+            Publish
+          </Button>
+          <Button
+            onClick={handleCancel}
+            className="bg-gray-400 dark:bg-gray-700 text-black dark:text-white hover:bg-gray-500 dark:hover:bg-gray-600"
+          >
+            Cancel
+          </Button>
+        </div>
       </form>
-      <div className="flex flex-row justify-end gap-2">
-        <Button type="submit" className="bg-black text-white hover:bg-gray-700">
-          Publish
-        </Button>
-        <Button
-          onClick={handleCancel}
-          className="bg-gray-400 dark:bg-gray-700 text-black dark:text-white hover:bg-gray-500 dark:hover:bg-gray-600"
-        >
-          Cancel
-        </Button>
-      </div>
     </div>
   );
 }
