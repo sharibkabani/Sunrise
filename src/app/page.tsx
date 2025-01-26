@@ -1,13 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import NewPost from "./newPost/page";
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import DiscussionCard from "@/components/DiscussionCard";
 import CourseCard from "@/components/CourseCard";
 import { createClient } from "@supabase/supabase-js";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatDistanceToNow } from "date-fns";
 
 const supabase = createClient(
 	process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -162,7 +161,7 @@ export default function Home() {
 			<>
 				{categories.map((category) => (
 					<TabsContent key={category.id} value={category.id.toString()}>
-						<div className="grid grid-cols-2 gap-6">
+						<div className="grid grid-cols-2 gap-6 mt-6">
 							{courses.map((course) => (
 								<Link key={course.id} href={`/course/${course.id}`}>
 									<CourseCard
@@ -170,6 +169,7 @@ export default function Home() {
 										instructor="John Doe"
 										imageUrl={course.thumbnail}
 										videoCount={course.videoCount}
+										difficulty={course.difficulty}
 										status="Ongoing"
 									/>
 								</Link>

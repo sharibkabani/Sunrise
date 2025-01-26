@@ -111,7 +111,7 @@ export default function RecentPosts() {
 					<div className="grid grid-cols-1 md:grid-cols-4 gap-6">
 						<div className="md:col-span-3">
 							<h2 className="text-xl font-bold mb-2 hover:text-gray-600 cursor-pointer">
-								<a href={`/posts/${post.id}`}>{post.title}</a>
+								<p href={`/posts/${post.id}`}>{post.title}</p>
 							</h2>
 							<div className="text-gray-600 mb-4 line-clamp-3">
 								{parse(getExcerpt(post.body, 10))}

@@ -3,19 +3,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { Sun, Moon } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
+import { useUser, SignInButton, UserButton } from "@clerk/nextjs";
 
 export default function NavBar() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  const [activeLink, setActiveLink] = useState("home");
+  const { isSignedIn, user } = useUser();
 
   useEffect(() => {
     setMounted(true);
-  }, [activeLink]);
-
+  }, []);
   if (!mounted) {
     return null; // or a loading skeleton
   }

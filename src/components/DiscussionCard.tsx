@@ -15,7 +15,7 @@ interface DiscussionCardProps {
 }
 
 export default function DiscussionCard({
-  id,
+	id,
 	title,
 	username,
 	avatarUrl,
@@ -47,27 +47,27 @@ export default function DiscussionCard({
 				</div>
 			</div>
 			<div>
-        <h3 className="font-semibold leading-snug">
-          <a href={`/posts/${id}`}>{title}</a>
-        </h3>
+				<h3 className="font-semibold leading-snug cursor-pointer" onClick={() => window.location.href = `/posts/${id}`}>
+					{title}
+				</h3>
 				<p className="text-sm text-muted-foreground mt-2 line-clamp-2">
 					{parse(excerpt)}
 				</p>
 			</div>
-      <div className="flex items-center gap-2 text-xs text-gray-500">
-        <div className="flex items-center gap-1 text-red-500">
-          <FaHeart />
-          <span>{likes}</span>
-        </div>
-        <span>|</span>
-        <span>{readTime} min read</span>
-        <span>|</span>
-        <span>
-          {formatDistanceToNow(new Date(createdAt), {
-            addSuffix: true,
-          })}
-        </span>
-      </div>
+			<div className="flex items-center gap-2 text-xs text-gray-500">
+				<div className="flex items-center gap-1 text-red-500">
+					<FaHeart />
+					<span>{likes}</span>
+				</div>
+				<span>|</span>
+				<span>{readTime} min read</span>
+				<span>|</span>
+				<span>
+					{formatDistanceToNow(new Date(createdAt), {
+						addSuffix: true,
+					})}
+				</span>
+			</div>
 			<Separator />
 		</div>
 	);
