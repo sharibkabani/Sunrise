@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import DiscussionCard from "@/components/DiscussionCard";
-import CourseCard from "@/components/CourseCard";
+import CourseCard, { CourseStatus } from "@/components/CourseCard";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -20,6 +20,8 @@ type Category = {
 type Course = {
   id: number;
   name: string;
+  status: CourseStatus;
+  difficulty: number;
   slug: string;
   thumbnail: string | null;
   videoCount: number;
@@ -44,7 +46,7 @@ type Crypto = {
   image: string;
 };
 
-function parseHTMLtoText(htmlString) {
+function parseHTMLtoText(htmlString: string) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(htmlString, "text/html");
   return doc.body.textContent || "";
@@ -105,8 +107,8 @@ export default function Home() {
       }
     };
 
-    fetchCategories();
-  }, []);
+    fetchCourses();
+  }, [activeTab]);
 
   useEffect(() => {
     const fetchPosts = async () => {
@@ -167,10 +169,10 @@ export default function Home() {
                 <Link key={course.slug} href={`/course/${course.slug}`}>
                   <CourseCard
                     title={course.name}
-                    imageUrl={course.thumbnail}
+                    imageUrl={course.thumbnail || ""}
                     videoCount={course.videoCount}
                     difficulty={course.difficulty}
-                    status="Ongoing"
+                    status={course.status}
                   />
                 </Link>
               ))}

@@ -2,38 +2,15 @@ import Image from "next/image";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-const isValidUrl = (url: string) => {
-  try {
-    new URL(url);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-const DEFAULT_IMAGE = "/course-placeholder.jpg"; // Add a default image to your public folder
-
-type CourseStatus = "Not Started" | "Ongoing" | "Completed";
+export type CourseStatus = "Ongoing" | "Completed";
 
 interface CourseCardProps {
   title: string;
-  instructor: string;
   imageUrl: string;
   videoCount: number;
   status: CourseStatus;
   difficulty: number; // 1 for Beginner, 2 for Intermediate, 3 for Advanced
 }
-
-const getStatusStyles = (status: CourseStatus) => {
-  switch (status) {
-    case "Completed":
-      return "bg-emerald-50 text-emerald-700";
-    case "Ongoing":
-      return "bg-sky-50 text-sky-700";
-    default:
-      return "bg-zinc-50 text-zinc-700";
-  }
-};
 
 export default function CourseCard({
   title,
@@ -86,9 +63,14 @@ export default function CourseCard({
           <span className="text-sm text-muted-foreground">
             {videoCount} videos
           </span>
-          <Badge className={getStatusStyles(status)} variant="secondary">
-            {status}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant={status === "Ongoing" ? "secondary" : "default"}>
+              {status}
+            </Badge>
+            <Badge className={`text-xs ${getDifficultyColor(difficulty)}`}>
+              {getDifficultyLabel(difficulty)}
+            </Badge>
+          </div>
         </div>
       </CardContent>
     </Card>
