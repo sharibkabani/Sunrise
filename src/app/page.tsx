@@ -6,7 +6,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import DiscussionCard from "@/components/DiscussionCard";
 import CourseCard from "@/components/CourseCard";
 import { createClient } from "@supabase/supabase-js";
-import { Skeleton } from "@/components/ui/skeleton";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,6 +20,7 @@ type Category = {
 type Course = {
   id: number;
   name: string;
+  slug: string;
   thumbnail: string | null;
   videoCount: number;
 };
@@ -90,6 +90,7 @@ export default function Home() {
           course_videos: course_videos(count)
         `
         )
+        .order("difficulty", { ascending: true })
         .eq("category_id", activeTab);
 
       if (error) {
@@ -163,10 +164,9 @@ export default function Home() {
           <TabsContent key={category.id} value={category.id.toString()}>
             <div className="grid grid-cols-2 gap-6 mt-6">
               {courses.map((course) => (
-                <Link key={course.id} href={`/course/${course.id}`}>
+                <Link key={course.slug} href={`/course/${course.slug}`}>
                   <CourseCard
                     title={course.name}
-                    instructor="John Doe"
                     imageUrl={course.thumbnail}
                     videoCount={course.videoCount}
                     difficulty={course.difficulty}
@@ -185,22 +185,8 @@ export default function Home() {
     return (
       <div className="min-h-screen flex flex-col">
         <main className="flex-1 container mx-auto px-4 py-8">
-          <div className="flex gap-8">
-            <div className="w-8/12">
-              <Skeleton className="h-10 w-32 mb-6" />
-              <div className="space-y-4">
-                <Skeleton className="h-10 w-full" />
-                {renderTabContent()}
-              </div>
-            </div>
-            <div className="w-4/12">
-              <Skeleton className="h-10 w-32 mb-6" />
-              <div className="space-y-4">
-                {[...Array(3)].map((_, i) => (
-                  <Skeleton key={i} className="h-32 w-full" />
-                ))}
-              </div>
-            </div>
+          <div className="flex items-center justify-center h-full">
+            <p className="text-lg">Loading...</p>
           </div>
         </main>
       </div>
