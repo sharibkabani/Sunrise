@@ -3,9 +3,12 @@
 import { useParams } from "next/navigation";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient, PostgrestError } from "@supabase/supabase-js";
-import { Lock } from "lucide-react";
+import { Lock, Check } from "lucide-react"; // Add Check import
 import { cn } from "@/lib/utils";
 import { useUser } from "@clerk/clerk-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -19,7 +22,20 @@ type CourseVideo = {
   video_url: string;
   duration: number;
   is_locked: boolean;
-  isCompleted?: boolean;
+  isCompleted: boolean; // Add this field
+};
+
+type QuizQuestion = {
+  id: number;
+  question: string;
+  options: string[];
+  correct_answer: string;
+};
+
+type CourseQuiz = {
+  id: number;
+  course_id: number;
+  questions: QuizQuestion[];
 };
 
 type Course = {
@@ -28,6 +44,7 @@ type Course = {
   thumbnail: string;
   description: string;
   videos: CourseVideo[];
+  quiz: CourseQuiz | null;
 };
 
 export default function CoursePage() {
@@ -42,6 +59,10 @@ export default function CoursePage() {
   const [showingNextIn, setShowingNextIn] = useState(false);
   const [countdown, setCountdown] = useState(5);
   const [videoMarkedAsComplete, setVideoMarkedAsComplete] = useState(false);
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [selectedAnswers, setSelectedAnswers] = useState<{
+    [key: number]: string;
+  }>({});
 
   useEffect(() => {
     const fetchCourse = async () => {
@@ -53,9 +74,11 @@ export default function CoursePage() {
           videos: course_videos(
             *,
             watched_videos: watched_course_videos(
-              is_locked
+              is_locked,
+              status
             )
-          )
+          ),
+          quiz: course_quizes(*)
         `
         )
         .eq("slug", slug)
@@ -76,11 +99,21 @@ export default function CoursePage() {
               video.watched_videos.length > 0
                 ? video.watched_videos[0].is_locked
                 : video.position !== 1,
+            isCompleted:
+              video.watched_videos.length > 0 &&
+              video.watched_videos[0].status === "COMPLETED",
           }));
+
+        // Check if all videos are completed
+        const allCompleted = sortedVideos.every(
+          (video: { isCompleted: boolean }) => video.isCompleted
+        );
+        setShowQuiz(allCompleted);
 
         setCourse({
           ...courseData,
           videos: sortedVideos || [],
+          quiz: courseData.quiz[0] || null,
         });
       }
       setLoading(false);
@@ -114,6 +147,26 @@ export default function CoursePage() {
           status: "COMPLETED",
           created_at: new Date().toISOString(),
         });
+
+        // Update user points using direct increment
+        const { data: userData, error: userError } = await supabase
+          .from("users")
+          .select("points")
+          .eq("id", user.id)
+          .single();
+
+        if (userError) {
+          throw userError;
+        }
+
+        const newPoints = (userData?.points || 0) + 50;
+
+        console.log({ newPoints });
+
+        await supabase
+          .from("users")
+          .update({ points: newPoints })
+          .eq("id", user.id);
 
         setVideoMarkedAsComplete(true);
       } catch (error) {
@@ -264,6 +317,26 @@ export default function CoursePage() {
     );
   };
 
+  const handleQuizSubmit = async () => {
+    if (!course?.quiz || !user?.id) return;
+
+    // Calculate score
+    const score = course.quiz.questions.reduce((acc, q) => {
+      return acc + (selectedAnswers[q.id] === q.correct_answer ? 1 : 0);
+    }, 0);
+
+    // Save quiz result
+    await supabase.from("quiz_results").insert({
+      user_id: user.id,
+      course_id: course.id,
+      score,
+      total_questions: course.quiz.questions.length,
+      completed_at: new Date().toISOString(),
+    });
+
+    alert(`Quiz submitted! Score: ${score}/${course.quiz.questions.length}`);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center">
@@ -295,7 +368,7 @@ export default function CoursePage() {
         <h1 className="text-3xl font-bold mb-6">{course.name}</h1>
 
         <div className="flex gap-6 mt-16">
-          {/* Left Column - Video List */}
+          {/* Left Column - Video List - Always visible */}
           <div className="w-6/12">
             <h2 className="text-2xl font-semibold mb-4">Course Content</h2>
             <div className="space-y-4">
@@ -316,7 +389,11 @@ export default function CoursePage() {
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                      <span className="text-sm font-medium">{index + 1}</span>
+                      {video.isCompleted ? (
+                        <Check className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <span className="text-sm font-medium">{index + 1}</span>
+                      )}
                     </div>
                     <div>
                       <h3 className="font-medium text-base">{video.name}</h3>
@@ -330,24 +407,78 @@ export default function CoursePage() {
             </div>
           </div>
 
-          {/* Right Column - Video Player */}
+          {/* Right Column - Video Player or Quiz */}
           <div className="w-6/12 flex flex-col gap-4">
-            {activeVideo && (
-              <>
-                <div className="relative">
-                  {renderVideoPlayer(activeVideo)}
-                  {showingNextIn && (
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                      <p className="text-white text-2xl font-bold">
-                        Next video in {countdown}s
-                      </p>
+            {showQuiz && course?.quiz ? (
+              <div className="bg-card rounded-lg p-6">
+                <h2 className="text-2xl font-semibold mb-4">Course Quiz</h2>
+                <ScrollArea className="h-[600px] pr-4">
+                  {course.quiz.questions.map((q) => (
+                    <div key={q.id} className="mb-8">
+                      <h3 className="text-lg font-medium mb-4">
+                        {q.id}. {q.question}
+                      </h3>
+                      <RadioGroup
+                        value={selectedAnswers[q.id]}
+                        onValueChange={(value) =>
+                          setSelectedAnswers((prev) => ({
+                            ...prev,
+                            [q.id]: value,
+                          }))
+                        }
+                      >
+                        {q.options.map((opt, optIdx) => (
+                          <div
+                            key={optIdx}
+                            className="flex items-center space-x-2 mb-2"
+                          >
+                            <RadioGroupItem
+                              value={opt}
+                              id={`q${q.id}-opt${optIdx}`}
+                            />
+                            <label
+                              htmlFor={`q${q.id}-opt${optIdx}`}
+                              className="text-sm"
+                            >
+                              {opt}
+                            </label>
+                          </div>
+                        ))}
+                      </RadioGroup>
                     </div>
-                  )}
-                </div>
-                <div className="mt-4 bg-card rounded-lg p-4">
-                  <h3 className="font-semibold text-lg">{activeVideo.name}</h3>
-                </div>
-              </>
+                  ))}
+                </ScrollArea>
+                <Button
+                  className="w-full mt-4"
+                  onClick={handleQuizSubmit}
+                  disabled={
+                    Object.keys(selectedAnswers).length !==
+                    course.quiz.questions.length
+                  }
+                >
+                  Submit Quiz
+                </Button>
+              </div>
+            ) : (
+              activeVideo && (
+                <>
+                  <div className="relative">
+                    {renderVideoPlayer(activeVideo)}
+                    {showingNextIn && (
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                        <p className="text-white text-2xl font-bold">
+                          Next video in {countdown}s
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-4 bg-card rounded-lg p-4">
+                    <h3 className="font-semibold text-lg">
+                      {activeVideo.name}
+                    </h3>
+                  </div>
+                </>
+              )
             )}
           </div>
         </div>

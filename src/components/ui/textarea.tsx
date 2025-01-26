@@ -29,13 +29,10 @@ interface TextareaProps {
 }
 
 const Textarea: React.FC<TextareaProps> = ({
-  id,
   className,
   value,
   onChange,
   placeholder,
-  required,
-  ...props
 }) => {
   const editor = useEditor({
     extensions: [

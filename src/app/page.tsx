@@ -8,6 +8,7 @@ import CourseCard, { CourseStatus } from "@/components/CourseCard";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
+import Image from "next/image";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -63,7 +64,6 @@ function parseHTMLtoText(htmlString: string) {
 
 export default function Home() {
   const router = useRouter();
-  const [userId, setUserId] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [activeTab, setActiveTab] = useState<string>("");
   const [courses, setCourses] = useState<Course[]>([]);
@@ -304,7 +304,9 @@ export default function Home() {
                     key={crypto.id}
                     className="bg-card rounded-lg p-4 flex items-center"
                   >
-                    <img
+                    <Image
+                      width={90}
+                      height={90}
                       src={crypto.image}
                       alt={crypto.name}
                       className="h-8 w-8 mr-4"
@@ -330,6 +332,7 @@ export default function Home() {
               {posts.map((post) => (
                 <Link key={post.id} href={`/posts/${post.id}`}>
                   <DiscussionCard
+                    id={post.id}
                     title={post.title}
                     username={post.username}
                     avatarUrl={post.avatar_url}
